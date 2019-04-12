@@ -2,18 +2,21 @@ package com.plusapps.kakaologintest;
 
 import android.app.Activity;
 import android.content.Context;
-import android.util.Log;
-import android.widget.Toast;
 
-import com.kakao.auth.AuthType;
+import com.kakao.auth.AccessTokenCallback;
 import com.kakao.auth.ISessionCallback;
 import com.kakao.auth.Session;
+import com.kakao.auth.authorization.accesstoken.AccessToken;
 import com.kakao.network.ErrorResult;
 import com.kakao.usermgmt.UserManagement;
-import com.kakao.usermgmt.callback.MeResponseCallback;
+import com.kakao.usermgmt.callback.MeV2ResponseCallback;
 import com.kakao.usermgmt.callback.UnLinkResponseCallback;
-import com.kakao.usermgmt.response.model.UserProfile;
+import com.kakao.usermgmt.response.MeV2Response;
+import com.kakao.usermgmt.response.model.UserAccount;
 import com.kakao.util.exception.KakaoException;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class SessionCallback implements ISessionCallback {
 
@@ -30,11 +33,10 @@ public class SessionCallback implements ISessionCallback {
 
     public void onSessionOpened() {
 
-        Log.d("kakaobanana", "onSessionOpened");
+        JeffLogger.kakaoLog( "onSessionOpened");
         requestMe();
 
     }
-
 
 
     // 로그인에 실패한 상태
@@ -43,136 +45,100 @@ public class SessionCallback implements ISessionCallback {
 
     public void onSessionOpenFailed(KakaoException exception) {
 
-        Log.e("SessionCallback :: ", "onSessionOpenFailed : " + exception.getMessage());
+        JeffLogger.kakaoLog( "onSessionOpenFailed : " + exception.getMessage());
 
     }
-
 
 
     // 사용자 정보 요청
 
     public void requestMe() {
 
+        List<String> keys = new ArrayList<>();
+        keys.add("properties.nickname");
+        keys.add("properties.profile_image");
+        keys.add("kakao_account.email");
+
         // 사용자정보 요청 결과에 대한 Callback
 
-        UserManagement.requestMe(new MeResponseCallback() {
-
-            // 세션 오픈 실패. 세션이 삭제된 경우,
+        UserManagement.getInstance().me(keys, new MeV2ResponseCallback() {
+            @Override
+            public void onFailure(ErrorResult errorResult) {
+                String message = "failed to get user info. msg=" + errorResult;
+                JeffLogger.kakaoLog(message);
+            }
 
             @Override
-
             public void onSessionClosed(ErrorResult errorResult) {
-
-                Log.e("SessionCallback :: ", "onSessionClosed : " + errorResult.getErrorMessage());
-                ((Activity)mContext).finish();
-
+                JeffLogger.kakaoLog("onSessionClosed : " + errorResult.getErrorMessage());
+                ((Activity) mContext).finish();
             }
 
-
-
-            // 회원이 아닌 경우,
-
             @Override
+            public void onSuccess(MeV2Response response) {
+                JeffLogger.kakaoLog("user id : " + response.getId());
+                JeffLogger.kakaoLog("email: " + response.getKakaoAccount().getEmail());
+                JeffLogger.kakaoLog("profile image: " + response.getProfileImagePath());
+                JeffLogger.kakaoLog("thumbnail image: " + response.getThumbnailImagePath());
 
-            public void onNotSignedUp() {
+                String email = response.getKakaoAccount().getEmail();
 
-                Log.e("SessionCallback :: ", "onNotSignedUp");
-                ((Activity)mContext).finish();
-
-            }
-
-
-
-            // 사용자정보 요청에 성공한 경우,
-
-            @Override
-
-            public void onSuccess(UserProfile userProfile) {
-
-
-
-                Log.e("SessionCallback :: ", "onSuccess");
-
-
-
-                String nickname = userProfile.getNickname();
-
-                String email = userProfile.getEmail();
-
-                String profileImagePath = userProfile.getProfileImagePath();
-
-                String thumnailPath = userProfile.getThumbnailImagePath();
-
-                String UUID = userProfile.getUUID();
-
-                long id = userProfile.getId();
-
-
-
-                Log.e("Profile : ", nickname + "");
-
-                Log.e("Profile : ", email + "");
-
-                Log.e("Profile : ", profileImagePath  + "");
-
-                Log.e("Profile : ", thumnailPath + "");
-
-                Log.e("Profile : ", UUID + "");
-
-                Log.e("Profile : ", id + "");
 
 
                 if (email == null || email.isEmpty()) {
 
-                    Toast.makeText(mContext, "'[선택] 카카오 계정(이메일)'에 체크해주세요", Toast.LENGTH_SHORT).show();
+                    requestUserEmailAgreement(response.getKakaoAccount());
 
-                    reconnectKakaoAccount();
+                } else {
+                    unlinkKakaoAccount();
+
+                    saveUserProfileOnServer(response);
+
                 }
 
-
-
-
-
             }
 
-
-
-            // 사용자 정보 요청 실패
-
-            @Override
-
-            public void onFailure(ErrorResult errorResult) {
-
-                Log.e("SessionCallback :: ", "onFailure : " + errorResult.getErrorMessage());
-                ((Activity)mContext).finish();
-
-            }
 
         });
 
+
+
     }
 
-    private void reconnectKakaoAccount() {
+    private void saveUserProfileOnServer(MeV2Response meV2Response) {
+
+
+
+    }
+
+    private void startMainActivity() {
+
+
+    }
+
+
+
+    private void unlinkKakaoAccount() {
         // requestUnlink를 해야 다음 카카오 로그인시 "개인정보 동의화면"이 뜸
-        UserManagement.requestUnlink(new UnLinkResponseCallback() {
+        UserManagement.getInstance().requestUnlink(new UnLinkResponseCallback() {
 
             @Override
             public void onSuccess(Long result) {
-                Log.e("kakaobanana", "requestUnlink onSuccess");
-                signupKakaoAccount();
+                JeffLogger.kakaoLog( "unlinkKakaoAccount onSuccess");
+
 
             }
 
             @Override
             public void onSessionClosed(ErrorResult errorResult) {
-                Log.e("kakaobanana", "requestUnlink onSessionClosed");
-                ((Activity)mContext).finish();
+                JeffLogger.kakaoLog( "unlinkKakaoAccount onSessionClosed");
+                ((Activity) mContext).finish();
             }
 
             @Override
             public void onNotSignedUp() {
-                Log.e("kakaobanana", "requestUnlink onNotSignedUp");
-                ((Activity)mContext).finish();
+                JeffLogger.kakaoLog( "unlinkKakaoAccount onNotSignedUp");
+                ((Activity) mContext).finish();
             }
 
         });
@@ -180,46 +146,34 @@ public class SessionCallback implements ISessionCallback {
 
     }
 
+    private void requestUserEmailAgreement(UserAccount account) {
+        List<String> neededScopes = new ArrayList<>();
+        if (account.emailNeedsAgreement().getBoolean()) {
+            neededScopes.add("account_email");
+        }
 
+        Session.getCurrentSession().updateScopes((Activity) mContext, neededScopes, new
+                AccessTokenCallback() {
+                    @Override
+                    public void onAccessTokenReceived(AccessToken accessToken) {
+                        // 유저에게 성공적으로 동의를 받음. 토큰을 재발급 받게 됨.
+                        //이 토큰을 Session 등에 지정할 필요는 없는 듯
+                        //access token으로 서버통신시 사용해서 필요한 데이터를 가져올 수 있는 듯
+                        //refresh token으로 access token의 유효기간이 만료되기 전 새로 유효한 access token을 발급받는 듯
+                        JeffLogger.kakaoLog( "requestUserEmailAgreement onAccessTokenReceived: " + accessToken);
+                        requestMe();
 
-    private void signupKakaoAccount() {
-        // requestUnlink를 해야 다음 카카오 로그인시 "개인정보 동의화면"이 뜸
-        //session이 closed됨
-        //unlink하면 자동으로 그렇게 되나?
-//            UserManagement.requestSignup(new SignupResponseCallback() {
-//
-//                @Override
-//                public void onSuccess(Long result) {
-//                    Log.e("kakaobanana", "signupKakaoAccount onSuccess");
-//                    signupKakaoAccount();
-//
-//                }
-//
-//                @Override
-//                public void onSessionClosed(ErrorResult errorResult) {
-//                    Log.e("kakaobanana", "signupKakaoAccount onSessionClosed " + errorResult.getErrorMessage());
-//                    finish();
-//                }
-//
-//                @Override
-//                public void onNotSignedUp() {
-//                    Log.e("kakaobanana", "signupKakaoAccount onNotSignedUp");
-//                    finish();
-//                }
-//
-//            }, null);
+                    }
 
-
-        // 이건 제대로 작동
-        Session session = Session.getCurrentSession();
-
-        Session.getCurrentSession().removeCallback(this);
-
-        session.addCallback(new SessionCallback(mContext));
-
-        session.open(AuthType.KAKAO_LOGIN_ALL, (Activity)mContext);
-
+                    @Override
+                    public void onAccessTokenFailure(ErrorResult errorResult) {
+                        // 동의 얻기 실패
+                        JeffLogger.kakaoLog( "requestUserEmailAgreement onAccessTokenFailure: " + errorResult.getErrorMessage());
+                        ((Activity) mContext).finish();
+                    }
+                });
     }
+
 
 }
 
